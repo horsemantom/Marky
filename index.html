@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZGT – Upload projekata na Google Drive</title>
+<style>
+  :root {
+    --navy: #142C69;
+    --navy-dark: #0d1f4d;
+    --gray: #6B6E70;
+    --text: #333333;
+    --border: #E0E2E5;
+    --bg: #F4F5F7;
+    --ok: #2e9e4f;
+    --err: #C0392B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    padding: 32px 16px;
+    color: var(--text);
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 28px 30px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .logo { height: 16px; margin-bottom: 18px; }
+  h1 {
+    font-size: 19px;
+    color: var(--navy);
+    margin: 0 0 4px 0;
+  }
+  .subtitle { font-size: 13px; color: var(--gray); margin: 0 0 22px 0; }
+
+  .auth-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 22px;
+    font-size: 13px;
+  }
+  .auth-status { color: var(--gray); }
+  .auth-status.connected { color: var(--ok); font-weight: bold; }
+
+  label {
+    display: block;
+    font-size: 13px;
+    font-weight: bold;
+    color: var(--navy);
+    margin: 18px 0 6px 0;
+  }
+  label:first-of-type { margin-top: 0; }
+  input[type="text"], textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    color: var(--text);
+  }
+  input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: var(--navy);
+  }
+  textarea { min-height: 110px; resize: vertical; line-height: 1.5; }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 22px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--gray);
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop-zone.drag { border-color: var(--navy); background: #EEF1F9; }
+  .drop-zone strong { color: var(--navy); }
+  #fileInput { display: none; }
+
+  .thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .thumb {
+    position: relative;
+    width: 84px;
+    height: 84px;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .rm {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(20,44,105,0.85);
+    color: #fff;
+    border: none;
+    font-size: 13px;
+    line-height: 20px;
+    text-align: center;
+    cursor: pointer;
+    padding: 0;
+  }
+  .thumb .rm:hover { background: var(--err); }
+
+  button.primary {
+    display: block;
+    width: 100%;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 24px;
+  }
+  button.primary:hover { background: var(--navy-dark); }
+  button.primary:disabled { background: #A9AEC2; cursor: not-allowed; }
+
+  button.secondary {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.secondary:hover { background: var(--navy-dark); }
+
+  .progress-wrap { margin-top: 18px; display: none; }
+  .progress-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .progress-item:last-child { border-bottom: none; }
+  .progress-item .name { color: var(--text); }
+  .progress-item .state { color: var(--gray); }
+  .progress-item .state.ok { color: var(--ok); font-weight: bold; }
+  .progress-item .state.err { color: var(--err); font-weight: bold; }
+
+  .result {
+    display: none;
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: #EAF7EE;
+    border: 1px solid #BFE6C9;
+    border-radius: 8px;
+    font-size: 13.5px;
+    color: #1E7A38;
+  }
+  .result a { color: var(--navy); font-weight: bold; }
+
+  .error-box {
+    display: none;
+    margin-top: 18px;
+    padding: 14px 16px;
+    background: #FBEAE8;
+    border: 1px solid #F1C4BE;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--err);
+  }
+
+  .hint { font-size: 11.5px; color: var(--gray); margin-top: 6px; }
+  .footer-note { font-size: 11.5px; color: var(--gray); text-align: center; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <img class="logo" src="data:image/png;base64,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" alt="Zagrebački transporti">
+    <h1>Upload projekata na Google Drive</h1>
+    <p class="subtitle">Unesi naziv, opis i slike projekta &mdash; automatski se kreira mapa na Driveu i sve se uploada u nju.</p>
+
+    <div class="auth-row">
+      <span id="authStatus" class="auth-status">Nisi prijavljen na Google.</span>
+      <button class="secondary" id="authBtn" type="button">Prijavi se</button>
+    </div>
+
+    <form id="projectForm">
+      <label for="projectName">Naziv projekta</label>
+      <input type="text" id="projectName" placeholder="npr. Transport agro opreme – rujan 2026" required>
+
+      <label for="projectDesc">Opis projekta</label>
+      <textarea id="projectDesc" placeholder="Kratak opis projekta..." required></textarea>
+
+      <label>Slike</label>
+      <div class="drop-zone" id="dropZone">
+        <div><strong>Klikni</strong> za odabir slika ili ih povuci i ispusti ovdje</div>
+        <div class="hint">Podržani formati: JPG, PNG, WEBP, HEIC. Može više slika odjednom.</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+      <div class="thumbs" id="thumbs"></div>
+
+      <button class="primary" id="submitBtn" type="submit">Spremi na Google Drive</button>
+
+      <div class="progress-wrap" id="progressWrap">
+        <div id="progressList"></div>
+      </div>
+
+      <div class="result" id="resultBox"></div>
+      <div class="error-box" id="errorBox"></div>
+    </form>
+  </div>
+
+  <p class="footer-note">Svi projekti idu u zajedničku mapu na Google Driveu, svaki u vlastitu podmapu s nazivom projekta.</p>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+// ============================================================
+// PODEŠAVANJE — popuni CLIENT_ID prije korištenja (vidi uputu ispod)
+// ============================================================
+const CLIENT_ID = '324004599947-1am1ej68s0ojgt9vaimj3huh2ct1fi11.apps.googleusercontent.com';
+const PARENT_FOLDER_ID = '1MWr7xA3aH-OapgB3e6jANHYuYVMEzSDB';
+const SCOPES = 'https://www.googleapis.com/auth/drive';
+// ============================================================
+
+let accessToken = null;
+let tokenClient = null;
+let selectedFiles = [];
+
+const authBtn = document.getElementById('authBtn');
+const authStatus = document.getElementById('authStatus');
+const form = document.getElementById('projectForm');
+const submitBtn = document.getElementById('submitBtn');
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const thumbs = document.getElementById('thumbs');
+const progressWrap = document.getElementById('progressWrap');
+const progressList = document.getElementById('progressList');
+const resultBox = document.getElementById('resultBox');
+const errorBox = document.getElementById('errorBox');
+
+function onAuthSuccess(resp) {
+  accessToken = resp.access_token;
+  authStatus.textContent = 'Prijavljen na Google Drive ✓';
+  authStatus.classList.add('connected');
+  authBtn.textContent = 'Promijeni račun';
+}
+
+function initGis() {
+  if (!window.google || !google.accounts || !google.accounts.oauth2) {
+    setTimeout(initGis, 200);
+    return;
+  }
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) {
+        showError('Prijava nije uspjela: ' + resp.error);
+        return;
+      }
+      onAuthSuccess(resp);
+    },
+  });
+
+  // Pokušaj tihu prijavu odmah, koristeći Google račun već prijavljen u pregledniku
+  // (ne prikazuje grešku ako ne uspije — korisnik onda jednostavno klikne "Prijavi se").
+  tokenClient.callback = (resp) => {
+    if (!resp.error) onAuthSuccess(resp);
+  };
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+window.addEventListener('load', initGis);
+
+authBtn.addEventListener('click', () => {
+  if (!tokenClient) { showError('Google prijava se još učitava, pokušaj za par sekundi.'); return; }
+  tokenClient.callback = (resp) => {
+    if (resp.error) { showError('Prijava nije uspjela: ' + resp.error); return; }
+    onAuthSuccess(resp);
+  };
+  // select_account otvara birač računa preglednika (koristi već prijavljeni Google račun,
+  // ili nudi izbor ako ih je prijavljeno više).
+  tokenClient.requestAccessToken({ prompt: accessToken ? 'select_account' : '' });
+});
+
+function ensureAuth() {
+  return new Promise((resolve, reject) => {
+    if (accessToken) { resolve(); return; }
+    if (!tokenClient) { reject(new Error('Google prijava nije spremna.')); return; }
+    tokenClient.callback = (resp) => {
+      if (resp.error) { reject(new Error(resp.error)); return; }
+      onAuthSuccess(resp);
+      resolve();
+    };
+    tokenClient.requestAccessToken({ prompt: '' });
+  });
+}
+
+// ---------- Odabir slika (klik + drag&drop) ----------
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drag');
+  addFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+
+function addFiles(fileList) {
+  for (const f of fileList) {
+    if (!f.type.startsWith('image/')) continue;
+    selectedFiles.push(f);
+  }
+  renderThumbs();
+}
+
+function renderThumbs() {
+  thumbs.innerHTML = '';
+  selectedFiles.forEach((f, idx) => {
+    const div = document.createElement('div');
+    div.className = 'thumb';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'rm';
+    rm.textContent = '×';
+    rm.addEventListener('click', () => { selectedFiles.splice(idx, 1); renderThumbs(); });
+    div.appendChild(img);
+    div.appendChild(rm);
+    thumbs.appendChild(div);
+  });
+}
+
+// ---------- Google Drive pozivi ----------
+async function driveCreateFolder(name, parentId) {
+  const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + accessToken,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: name,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    }),
+  });
+  if (!res.ok) throw new Error('Kreiranje mape nije uspjelo (' + res.status + ')');
+  return res.json();
+}
+
+function buildMultipartBody(metadata, blob, mimeType, boundary) {
+  const delim = '\r\n--' + boundary + '\r\n';
+  const closeDelim = '\r\n--' + boundary + '--';
+  const metaPart = delim + 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata);
+  const mediaHeader = delim + 'Content-Type: ' + mimeType + '\r\n\r\n';
+  return new Blob([metaPart, mediaHeader, blob, closeDelim], {
+    type: 'multipart/related; boundary=' + boundary,
+  });
+}
+
+async function driveUploadFile(name, parentId, blob, mimeType) {
+  const boundary = 'zgt_boundary_' + Math.random().toString(16).slice(2);
+  const body = buildMultipartBody({ name, parents: [parentId] }, blob, mimeType, boundary);
+  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + accessToken },
+    body,
+  });
+  if (!res.ok) throw new Error('Upload nije uspio za "' + name + '" (' + res.status + ')');
+  return res.json();
+}
+
+// ---------- Progress UI ----------
+function addProgressRow(id, label) {
+  const row = document.createElement('div');
+  row.className = 'progress-item';
+  row.id = 'prog-' + id;
+  row.innerHTML = '<span class="name">' + label + '</span><span class="state">na čekanju…</span>';
+  progressList.appendChild(row);
+}
+function setProgressRow(id, text, cls) {
+  const row = document.getElementById('prog-' + id);
+  if (!row) return;
+  const state = row.querySelector('.state');
+  state.textContent = text;
+  state.className = 'state' + (cls ? ' ' + cls : '');
+}
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.style.display = 'block';
+}
+function clearMessages() {
+  errorBox.style.display = 'none';
+  errorBox.textContent = '';
+  resultBox.style.display = 'none';
+  resultBox.innerHTML = '';
+}
+
+// ---------- Submit ----------
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearMessages();
+
+  const name = document.getElementById('projectName').value.trim();
+  const desc = document.getElementById('projectDesc').value.trim();
+
+  if (!name) { showError('Unesi naziv projekta.'); return; }
+  if (!desc) { showError('Unesi opis projekta.'); return; }
+  if (selectedFiles.length === 0) { showError('Dodaj barem jednu sliku.'); return; }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Spremanje u tijeku…';
+  progressWrap.style.display = 'block';
+  progressList.innerHTML = '';
+
+  addProgressRow('folder', 'Kreiranje mape "' + name + '"');
+  selectedFiles.forEach((f, i) => addProgressRow('img' + i, f.name));
+  addProgressRow('desc', 'Opis.txt');
+
+  try {
+    await ensureAuth();
+
+    const folder = await driveCreateFolder(name, PARENT_FOLDER_ID);
+    setProgressRow('folder', 'Gotovo ✓', 'ok');
+
+    const descBlob = new Blob([desc], { type: 'text/plain' });
+    await driveUploadFile('Opis.txt', folder.id, descBlob, 'text/plain');
+    setProgressRow('desc', 'Gotovo ✓', 'ok');
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const f = selectedFiles[i];
+      try {
+        await driveUploadFile(f.name, folder.id, f, f.type || 'application/octet-stream');
+        setProgressRow('img' + i, 'Gotovo ✓', 'ok');
+      } catch (err) {
+        setProgressRow('img' + i, 'Greška', 'err');
+        throw err;
+      }
+    }
+
+    resultBox.innerHTML = 'Projekt "' + escapeHtml(name) + '" uspješno spremljen. ' +
+      '<a href="https://drive.google.com/drive/folders/' + folder.id + '" target="_blank" rel="noopener">Otvori mapu na Driveu</a>';
+    resultBox.style.display = 'block';
+
+    form.reset();
+    selectedFiles = [];
+    renderThumbs();
+  } catch (err) {
+    showError('Došlo je do greške: ' + err.message);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Spremi na Google Drive';
+  }
+});
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
